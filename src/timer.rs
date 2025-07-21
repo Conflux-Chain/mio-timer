@@ -15,6 +15,16 @@ use std::{
     u64, usize,
 };
 
+type Tick = u64;
+
+const TICK_MAX: Tick = u64::MAX;
+
+// Manages communication with wakeup thread
+type WakeupState = Arc<AtomicUsize>;
+
+const TERMINATE_THREAD: usize = 0;
+const EMPTY: Token = Token(usize::MAX);
+
 /// A timer.
 ///
 /// Typical usage goes like this:
@@ -57,62 +67,6 @@ pub struct Builder {
     capacity: usize,
 }
 
-/// A timeout, as returned by `Timer::set_timeout`.
-///
-/// Use this as the argument to `Timer::cancel_timeout`, to cancel this timeout.
-#[derive(Clone, Debug)]
-pub struct Timeout {
-    // Reference into the timer entry slab
-    token: Token,
-    // Tick that it should match up with
-    tick: u64,
-}
-
-struct Inner {
-    waker: Arc<Mutex<Option<Waker>>>,
-    wakeup_state: WakeupState,
-    wakeup_thread: thread::JoinHandle<()>,
-}
-
-impl Drop for Inner {
-    fn drop(&mut self) {
-        // 1. Set wakeup state to TERMINATE_THREAD
-        self.wakeup_state.store(TERMINATE_THREAD, Ordering::Release);
-        // 2. Wake him up
-        self.wakeup_thread.thread().unpark();
-    }
-}
-
-#[derive(Copy, Clone, Debug)]
-struct WheelEntry {
-    next_tick: Tick,
-    head: Token,
-}
-
-// Doubly linked list of timer entries. Allows for efficient insertion /
-// removal of timeouts.
-struct Entry<T> {
-    state: T,
-    links: EntryLinks,
-}
-
-#[derive(Copy, Clone)]
-struct EntryLinks {
-    tick: Tick,
-    prev: Token,
-    next: Token,
-}
-
-type Tick = u64;
-
-const TICK_MAX: Tick = u64::MAX;
-
-// Manages communication with wakeup thread
-type WakeupState = Arc<AtomicUsize>;
-
-const TERMINATE_THREAD: usize = 0;
-const EMPTY: Token = Token(usize::MAX);
-
 impl Builder {
     /// Set the tick duration.  Default is 100ms.
     pub fn tick_duration(mut self, duration: Duration) -> Builder {
@@ -151,6 +105,73 @@ impl Default for Builder {
             capacity: 1 << 16,
         }
     }
+}
+
+/// A timeout, as returned by `Timer::set_timeout`.
+///
+/// Use this as the argument to `Timer::cancel_timeout`, to cancel this timeout.
+#[derive(Clone, Debug)]
+pub struct Timeout {
+    // Reference into the timer entry slab
+    token: Token,
+    // Tick that it should match up with
+    tick: u64,
+}
+
+struct Inner {
+    waker: Arc<Mutex<Option<Waker>>>,
+    wakeup_state: WakeupState,
+    wakeup_thread: thread::JoinHandle<()>,
+}
+
+impl Drop for Inner {
+    fn drop(&mut self) {
+        // 1. Set wakeup state to TERMINATE_THREAD
+        self.wakeup_state.store(TERMINATE_THREAD, Ordering::Release);
+        // 2. Wake him up
+        self.wakeup_thread.thread().unpark();
+    }
+}
+
+impl fmt::Debug for Inner {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        fmt.debug_struct("Inner")
+            .field("wakeup_state", &self.wakeup_state.load(Ordering::Relaxed))
+            .finish()
+    }
+}
+
+#[derive(Copy, Clone, Debug)]
+struct WheelEntry {
+    next_tick: Tick,
+    head: Token,
+}
+
+// Doubly linked list of timer entries. Allows for efficient insertion /
+// removal of timeouts.
+struct Entry<T> {
+    state: T,
+    links: EntryLinks,
+}
+
+impl<T> Entry<T> {
+    fn new(state: T, tick: u64, next: Token) -> Entry<T> {
+        Entry {
+            state,
+            links: EntryLinks {
+                tick,
+                prev: EMPTY,
+                next,
+            },
+        }
+    }
+}
+
+#[derive(Copy, Clone)]
+struct EntryLinks {
+    tick: Tick,
+    prev: Token,
+    next: Token,
 }
 
 impl<T> Timer<T> {
@@ -469,14 +490,6 @@ impl<T> Source for Timer<T> {
     }
 }
 
-impl fmt::Debug for Inner {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        fmt.debug_struct("Inner")
-            .field("wakeup_state", &self.wakeup_state.load(Ordering::Relaxed))
-            .finish()
-    }
-}
-
 fn spawn_wakeup_thread(
     state: WakeupState,
     waker: Arc<Mutex<Option<Waker>>>,
@@ -552,19 +565,6 @@ fn duration_to_tick(elapsed: Duration, tick_ms: u64) -> Tick {
 
 fn current_tick(start: Instant, tick_ms: u64) -> Tick {
     duration_to_tick(start.elapsed(), tick_ms)
-}
-
-impl<T> Entry<T> {
-    fn new(state: T, tick: u64, next: Token) -> Entry<T> {
-        Entry {
-            state,
-            links: EntryLinks {
-                tick,
-                prev: EMPTY,
-                next,
-            },
-        }
-    }
 }
 
 #[cfg(test)]

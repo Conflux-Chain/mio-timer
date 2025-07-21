@@ -1,0 +1,15 @@
+[package]
+name = "mio-timer"
+description = "A simple timer library for mio 1.0"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+lazycell = "1.3.0"
+log = "0.4.27"
+mio = "1.0.4"
+slab = "0.4.10"
+
+[dev-dependencies]
+env_logger = "0.11"
+mio = { version = "1.0.4", features = ["os-poll"] }

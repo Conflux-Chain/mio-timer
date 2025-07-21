@@ -3,6 +3,8 @@ name = "mio-timer"
 description = "A simple timer library for mio 1.0"
 version = "0.1.0"
 edition = "2024"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/Pana/mio-timer"
 
 [dependencies]
 lazycell = "1.3.0"

@@ -12,7 +12,6 @@ use std::{
     },
     thread,
     time::{Duration, Instant},
-    u64, usize,
 };
 
 type Tick = u64;

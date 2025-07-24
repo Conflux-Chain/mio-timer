@@ -2,17 +2,18 @@
 use super::convert;
 use lazycell::LazyCell;
 use log::trace;
-use mio::{Interest, Registry, Token, Waker, event::Source};
+use mio::Token;
 use slab::Slab;
 use std::{
     cmp, fmt, io, iter,
     sync::{
-        Arc, Mutex,
+        Arc,
         atomic::{AtomicUsize, Ordering},
     },
     thread,
     time::{Duration, Instant},
 };
+use mio_misc::{queue::Notifier, NotificationId};
 
 type Tick = u64;
 
@@ -117,8 +118,10 @@ pub struct Timeout {
     tick: u64,
 }
 
+#[allow(unused)]
 struct Inner {
-    waker: Arc<Mutex<Option<Waker>>>,
+    waker: Option<Arc<dyn Notifier>>,
+    waker_id: Option<NotificationId>,
     wakeup_state: WakeupState,
     wakeup_thread: thread::JoinHandle<()>,
 }
@@ -417,6 +420,36 @@ impl<T> Timer<T> {
     fn slot_for(&self, tick: Tick) -> usize {
         (self.mask & tick) as usize
     }
+
+    pub fn register(&mut self, notifier: Arc<dyn Notifier>, notification_id: NotificationId) -> io::Result<()> {
+        if self.inner.borrow().is_some() {
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                "timer already registered",
+            ));
+        }
+
+        let wakeup_state = Arc::new(AtomicUsize::new(usize::MAX));
+        let thread_handle = spawn_wakeup_thread(
+            Arc::clone(&wakeup_state),
+            notifier.clone(),
+            notification_id,
+            self.start,
+            self.tick_ms,
+        );
+        self.inner.fill(Inner {
+            waker: Some(notifier),
+            waker_id: Some(notification_id),
+            wakeup_state,
+            wakeup_thread: thread_handle,
+        }).expect("timer already registered");
+
+        if let Some(next_tick) = self.next_tick() {
+            self.schedule_readiness(next_tick);
+        }
+
+        return Ok(())
+    }
 }
 
 impl<T> Default for Timer<T> {
@@ -425,73 +458,10 @@ impl<T> Default for Timer<T> {
     }
 }
 
-impl<T> Source for Timer<T> {
-    fn register(&mut self, registry: &Registry, token: Token, _: Interest) -> io::Result<()> {
-        if self.inner.borrow().is_some() {
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
-                "timer already registered",
-            ));
-        }
-
-        let waker = Arc::new(Mutex::new(Some(Waker::new(registry, token)?)));
-        let wakeup_state = Arc::new(AtomicUsize::new(usize::MAX));
-        let thread_handle = spawn_wakeup_thread(
-            Arc::clone(&wakeup_state),
-            waker.clone(),
-            self.start,
-            self.tick_ms,
-        );
-
-        self.inner
-            .fill(Inner {
-                waker,
-                wakeup_state,
-                wakeup_thread: thread_handle,
-            })
-            .expect("timer already registered");
-
-        if let Some(next_tick) = self.next_tick() {
-            self.schedule_readiness(next_tick);
-        }
-
-        Ok(())
-    }
-
-    fn reregister(&mut self, registry: &Registry, token: Token, _: Interest) -> io::Result<()> {
-        match self.inner.borrow() {
-            Some(inner) => {
-                let mut waker = inner.waker.lock().unwrap();
-                *waker = Some(Waker::new(registry, token)?);
-
-                return Ok(());
-            }
-            None => Err(io::Error::new(
-                io::ErrorKind::Other,
-                "receiver not registered",
-            )),
-        }
-    }
-
-    fn deregister(&mut self, _: &Registry) -> io::Result<()> {
-        match self.inner.borrow() {
-            Some(inner) => {
-                let mut waker = inner.waker.lock().unwrap();
-                *waker = None;
-
-                return Ok(());
-            }
-            None => Err(io::Error::new(
-                io::ErrorKind::Other,
-                "receiver not registered",
-            )),
-        }
-    }
-}
-
 fn spawn_wakeup_thread(
     state: WakeupState,
-    waker: Arc<Mutex<Option<Waker>>>,
+    waker: Arc<dyn Notifier>,
+    notification_id: NotificationId,
     start: Instant,
     tick_ms: u64,
 ) -> thread::JoinHandle<()> {
@@ -544,9 +514,7 @@ fn spawn_wakeup_thread(
 
                 if actual == sleep_until_tick {
                     trace!("setting readiness from wakeup thread");
-                    if let Some(waker) = &mut *waker.lock().unwrap() {
-                        let _ = waker.wake();
-                    }
+                    let _ = waker.notify(notification_id);
                     sleep_until_tick = usize::MAX as Tick;
                 } else {
                     sleep_until_tick = actual as Tick;

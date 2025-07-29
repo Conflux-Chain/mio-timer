@@ -11,7 +11,7 @@ lazycell = "1.3.0"
 log = "0.4.27"
 mio = "1.0.4"
 slab = "0.4.10"
-mio-misc = { version = "2.1.0", git = "https://github.com/Pana/mio-misc", rev = "27ad80f" }
+mio-misc = { git = "https://github.com/Pana/mio-misc", rev = "27ad80f" }
 
 [dev-dependencies]
 env_logger = "0.11"

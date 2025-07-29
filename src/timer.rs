@@ -120,8 +120,8 @@ pub struct Timeout {
 
 #[allow(unused)]
 struct Inner {
-    waker: Option<Arc<dyn Notifier>>,
-    waker_id: Option<NotificationId>,
+    waker: Arc<dyn Notifier>,
+    waker_id: NotificationId,
     wakeup_state: WakeupState,
     wakeup_thread: thread::JoinHandle<()>,
 }
@@ -438,8 +438,8 @@ impl<T> Timer<T> {
             self.tick_ms,
         );
         self.inner.fill(Inner {
-            waker: Some(notifier),
-            waker_id: Some(notification_id),
+            waker: notifier,
+            waker_id: notification_id,
             wakeup_state,
             wakeup_thread: thread_handle,
         }).expect("timer already registered");

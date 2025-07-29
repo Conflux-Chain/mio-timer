@@ -34,20 +34,12 @@ fn main() -> std::io::Result<()> {
                 TIMER => {
                     let noti_id = queue.pop();
                     info!("Notification ID popped: {:?}", noti_id);
-                    let state = timer.poll();
-                    match state {
-                        Some(s) => {
-                            info!("Got state from timer: {}", s);
-                            if s == 100 {
-                                break 'outer;
-                            }
-                        }
-                        None => {
-                            info!("Not get state from timer");
+                    while let Some(state) = timer.poll() {
+                        info!("Got state from timer: {}", state);
+                        if state == 100 {
+                            break 'outer;
                         }
                     }
-                    let state = timer.poll();
-                    info!("Got state second time from timer: {:?}", state);
                 }
                 _ => {
                     assert!(false, "Unexpected token: {:?}", event.token());

@@ -1,15 +1,15 @@
 use log::*;
 use mio::{Events, Poll, Token, Waker};
+use mio_misc::{NotificationId, queue::NotificationQueue};
 use mio_timer::{Builder, Timer};
-use std::time::Duration;
-use mio_misc::{queue::NotificationQueue, NotificationId};
 use std::sync::Arc;
+use std::time::Duration;
 
 const TIMER: Token = Token(1);
 
 fn main() -> std::io::Result<()> {
     let _ = env_logger::builder().is_test(true).try_init();
-    
+
     let mut poll = Poll::new()?;
     let mut events = Events::with_capacity(128);
 

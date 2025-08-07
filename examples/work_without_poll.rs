@@ -2,7 +2,6 @@ use log::*;
 use mio_timer::{Builder, Timer};
 use std::time::Duration;
 
-
 fn main() -> std::io::Result<()> {
     let _ = env_logger::builder().is_test(true).try_init();
 
@@ -18,7 +17,7 @@ fn main() -> std::io::Result<()> {
         if state == Some(100) {
             break;
         }
-        
+
         std::thread::sleep(Duration::from_millis(100));
     }
 

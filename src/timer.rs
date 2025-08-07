@@ -3,6 +3,7 @@ use super::convert;
 use lazycell::LazyCell;
 use log::trace;
 use mio::Token;
+use mio_misc::{NotificationId, queue::Notifier};
 use slab::Slab;
 use std::{
     cmp, fmt, io, iter,
@@ -13,7 +14,6 @@ use std::{
     thread,
     time::{Duration, Instant},
 };
-use mio_misc::{queue::Notifier, NotificationId};
 
 type Tick = u64;
 
@@ -421,7 +421,11 @@ impl<T> Timer<T> {
         (self.mask & tick) as usize
     }
 
-    pub fn register(&mut self, notifier: Arc<dyn Notifier>, notification_id: NotificationId) -> io::Result<()> {
+    pub fn register(
+        &mut self,
+        notifier: Arc<dyn Notifier>,
+        notification_id: NotificationId,
+    ) -> io::Result<()> {
         if self.inner.borrow().is_some() {
             return Err(io::Error::new(
                 io::ErrorKind::Other,
@@ -437,18 +441,20 @@ impl<T> Timer<T> {
             self.start,
             self.tick_ms,
         );
-        self.inner.fill(Inner {
-            waker: notifier,
-            waker_id: notification_id,
-            wakeup_state,
-            wakeup_thread: thread_handle,
-        }).expect("timer already registered");
+        self.inner
+            .fill(Inner {
+                waker: notifier,
+                waker_id: notification_id,
+                wakeup_state,
+                wakeup_thread: thread_handle,
+            })
+            .expect("timer already registered");
 
         if let Some(next_tick) = self.next_tick() {
             self.schedule_readiness(next_tick);
         }
 
-        return Ok(())
+        return Ok(());
     }
 }
 

@@ -10,8 +10,8 @@ repository = "https://github.com/Pana/mio-timer"
 lazycell = "1.3.0"
 log = "0.4.27"
 mio = "1.0.4"
-slab = "0.4.10"
-mio-misc = { git = "https://github.com/Pana/mio-misc", rev = "27ad80f" }
+slab = "0.4.11"
+mio-misc = { git = "https://github.com/conflux-chain/mio-misc", rev = "27ad80f" }
 
 [dev-dependencies]
 env_logger = "0.11"

@@ -215,7 +215,7 @@ dependencies = [
 [[package]]
 name = "mio-misc"
 version = "2.1.0"
-source = "git+https://github.com/Pana/mio-misc?rev=27ad80f#27ad80f084dd94ff560c93d4abfdab79189d0927"
+source = "git+https://github.com/conflux-chain/mio-misc?rev=27ad80f#27ad80f084dd94ff560c93d4abfdab79189d0927"
 dependencies = [
  "crossbeam",
  "crossbeam-queue",
@@ -325,9 +325,9 @@ dependencies = [
 
 [[package]]
 name = "slab"
-version = "0.4.10"
+version = "0.4.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "04dc19736151f35336d325007ac991178d504a119863a2fcb3758cdb5e52c50d"
+checksum = "7a2ae44ef20feb57a68b23d846850f861394c2e02dc425a50098ae8c90267589"
 
 [[package]]
 name = "syn"

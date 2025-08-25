@@ -1,9 +1,9 @@
 mod event_loop;
 mod timer;
+pub mod io_util;
 
 pub use event_loop::{EventLoop, EventLoopBuilder, Handler, NotifyError};
 pub use timer::{Builder, Timeout, Timer};
-
 pub use mio_misc::{NotificationId, channel, poll, queue, scheduler};
 
 mod convert {
